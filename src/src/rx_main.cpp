@@ -4,6 +4,8 @@
 #include "common.h"
 #include "LowPassFilter.h"
 
+#define TARGET_R9M_RX 1
+#define Regulatory_Domain_EU_868 1
 #if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_EU_868) || defined(Regulatory_Domain_FCC_915) || defined(Regulatory_Domain_AU_433) || defined(Regulatory_Domain_EU_433)
 #include "SX127xDriver.h"
 SX127xDriver Radio;
@@ -13,6 +15,7 @@ SX1280Driver Radio;
 #endif
 
 #include "CRSF.h"
+#include <Telemetry.h>
 #include "FHSS.h"
 // #include "Debug.h"
 #include "OTA.h"
@@ -42,7 +45,7 @@ SX1280Driver Radio;
 hwTimer hwTimer;
 
 CRSF crsf(Serial); //pass a serial port object to the class for it to use
-
+Telemetry telemetry;
 /// Filters ////////////////
 LPF LPF_Offset(2);
 LPF LPF_OffsetDx(4);
@@ -763,7 +766,8 @@ void loop()
         #endif
     }
 
-    #ifdef PLATFORM_STM32
-    STM32_RX_HandleUARTin();
-    #endif
+    while (Serial.available())
+    {
+        telemetry.RXhandleUARTin(Serial.read());
+    }
 }
