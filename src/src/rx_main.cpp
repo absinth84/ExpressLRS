@@ -29,10 +29,6 @@ SX1280Driver Radio;
 #include "ESP8266_WebUpdate.h"
 #endif
 
-#ifdef PLATFORM_STM32
-#include "STM32_UARTinHandler.h"
-#endif
-
 //// CONSTANTS ////
 #define BUTTON_SAMPLE_INTERVAL 150
 #define WEB_UPDATE_PRESS_INTERVAL 2000 // hold button for 2 sec to enable webupdate mode
