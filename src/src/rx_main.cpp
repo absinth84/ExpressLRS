@@ -14,6 +14,7 @@ SX127xDriver Radio;
 SX1280Driver Radio;
 #endif
 
+#include <crsf_protocol.h>
 #include "CRSF.h"
 #include <Telemetry.h>
 #include "FHSS.h"
@@ -769,5 +770,17 @@ void loop()
     while (Serial.available())
     {
         telemetry.RXhandleUARTin(Serial.read());
+
+        if (telemetry.callBootloader)
+        {
+            #if defined(PLATFORM_STM32)
+                delay(100);
+                Serial.println("Jumping to Bootloader...");
+                delay(100);
+                HAL_NVIC_SystemReset();
+            #endif
+
+            telemetry.callBootloader = false;
+        }
     }
 }
