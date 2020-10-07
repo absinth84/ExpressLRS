@@ -112,7 +112,7 @@ void ICACHE_RAM_ATTR getRFlinkInfo()
 
     crsf.PackedRCdataOut.ch15 = UINT10_to_CRSF(map(rssiDBM, -100, -50, 0, 1023));
     crsf.PackedRCdataOut.ch14 = UINT10_to_CRSF(fmap(uplinkLQ, 0, 100, 0, 1023));
-  
+
     // our rssiDBM is currently in the range -128 to 98, but BF wants a value in the range
     // 0 to 255 that maps to -1 * the negative part of the rssiDBM, so cap at 0.
     if (rssiDBM > 0)
@@ -492,7 +492,7 @@ void ICACHE_RAM_ATTR ProcessRFPacket()
         Radio.SetPPMoffsetReg(FreqCorrection);         //as above but corrects a different PPM offset based on freq error
         #endif
     }
-    
+
     doneProcessing = micros();
 
 #ifndef DEBUG_SUPPRESS
