@@ -36,7 +36,7 @@ public:
     static HardwareSerial Port;
 
     static volatile uint16_t ChannelDataIn[16];
-    static volatile uint16_t ChannelDataInPrev[16]; // Contains the previous RC channel data RX side only 
+    static volatile uint16_t ChannelDataInPrev[16]; // Contains the previous RC channel data RX side only
     static volatile uint16_t ChannelDataOut[16];
 
     // current and sent switch values
@@ -104,7 +104,7 @@ public:
     void ICACHE_RAM_ATTR sendMSPFrameToFC(mspPacket_t* packet);
     void sendLinkStatisticsToFC();
     void ICACHE_RAM_ATTR sendLinkStatisticsToTX();
-    void ICACHE_RAM_ATTR sendLinkBattSensorToTX();
+    void ICACHE_RAM_ATTR sendTelemetryToTX(uint8_t size, uint8_t *data);
 
     void sendLUAresponse(uint8_t val[]);
 

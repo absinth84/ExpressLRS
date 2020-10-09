@@ -87,7 +87,7 @@ LPF LPF_OPENTX_SYNC_OFFSET(3);
 uint32_t CRSF::OpenTXsyncOffsetSafeMargin = 1000;
 LPF LPF_OPENTX_SYNC_MARGIN(3);
 #else
-uint32_t CRSF::OpenTXsyncOffsetSafeMargin = 4000; // 400us 
+uint32_t CRSF::OpenTXsyncOffsetSafeMargin = 4000; // 400us
 #endif
 volatile uint32_t CRSF::OpenTXsyncLastSent = 0;
 uint32_t CRSF::RequestedRCpacketInterval = 5000; // default to 200hz as per 'normal'
@@ -236,37 +236,15 @@ void ICACHE_RAM_ATTR CRSF::sendLUAresponse(uint8_t val[])
     }
 }
 
-void ICACHE_RAM_ATTR CRSF::sendLinkBattSensorToTX()
+void ICACHE_RAM_ATTR CRSF::sendTelemetryToTX(uint8_t size, uint8_t *data)
 {
-    uint8_t outBuffer[BattSensorFrameLength + 4] = {0};
-
-    outBuffer[0] = CRSF_ADDRESS_RADIO_TRANSMITTER;
-    outBuffer[1] = BattSensorFrameLength + 2;
-    outBuffer[2] = CRSF_FRAMETYPE_BATTERY_SENSOR;
-
-    outBuffer[3] = CRSF::TLMbattSensor.voltage << 8;
-    outBuffer[4] = CRSF::TLMbattSensor.voltage;
-
-    outBuffer[5] = CRSF::TLMbattSensor.current << 8;
-    outBuffer[6] = CRSF::TLMbattSensor.current;
-
-    outBuffer[7] = CRSF::TLMbattSensor.capacity << 16;
-    outBuffer[9] = CRSF::TLMbattSensor.capacity << 8;
-
-    outBuffer[10] = CRSF::TLMbattSensor.capacity;
-    outBuffer[11] = CRSF::TLMbattSensor.remaining;
-
-    uint8_t crc = CalcCRC(&outBuffer[2], BattSensorFrameLength + 1);
-
-    outBuffer[BattSensorFrameLength + 3] = crc;
-
     if (CRSF::CRSFstate)
     {
 #ifdef PLATFORM_ESP32
         xSemaphoreTake(mutexOutFIFO, portMAX_DELAY);
 #endif
-        SerialOutFIFO.push(BattSensorFrameLength + 4); // length
-        SerialOutFIFO.pushBytes(outBuffer, BattSensorFrameLength + 4);
+        SerialOutFIFO.push(size); // length
+        SerialOutFIFO.pushBytes(data, size);
 #ifdef PLATFORM_ESP32
         xSemaphoreGive(mutexOutFIFO);
 #endif
@@ -814,7 +792,7 @@ void ICACHE_RAM_ATTR CRSF::sendSyncPacketToTX(void *pvParameters) // in values i
                                     CRSF::STM32handleUARTout();
                                     while (CRSF::Port.available())
                                     {
-                                        CRSF::Port.read(); // empty any remaining garbled data 
+                                        CRSF::Port.read(); // empty any remaining garbled data
                                     }
                                     GoodPktsCount++;
                                 }
@@ -830,7 +808,7 @@ void ICACHE_RAM_ATTR CRSF::sendSyncPacketToTX(void *pvParameters) // in values i
                                 SerialInPacketLen = 0;
                                 while (CRSF::Port.available())
                                 {
-                                    CRSF::Port.read(); // empty any remaining garbled data 
+                                    CRSF::Port.read(); // empty any remaining garbled data
                                 }
                                 BadPktsCount++;
                                 memset((void *)SerialInBuffer, 0, sizeof(SerialInBuffer)); // either crc was good or not, either way zero the buffer
