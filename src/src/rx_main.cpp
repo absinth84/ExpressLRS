@@ -44,6 +44,7 @@ hwTimer hwTimer;
 
 CRSF crsf(Serial); //pass a serial port object to the class for it to use
 Telemetry telemetry;
+StubbornLink telemetryLink;
 /// Filters ////////////////
 LPF LPF_Offset(2);
 LPF LPF_OffsetDx(4);
@@ -105,6 +106,8 @@ int16_t RFnoiseFloor; //measurement of the current RF noise floor
 uint32_t RFmodeLastCycled = 0;
 bool LockRFmode = false;
 ///////////////////////////////////////
+
+volatile bool WaitUntilTelemtryConfirm = true;
 
 void ICACHE_RAM_ATTR getRFlinkInfo()
 {
@@ -202,10 +205,15 @@ void ICACHE_RAM_ATTR HandleSendTelemetryResponse()
     openTxRSSI = 255 - openTxRSSI;
     Radio.TXdataBuffer[2] = openTxRSSI;
 
-    Radio.TXdataBuffer[3] = 0;
+    uint8_t *data;
+    uint8_t maxLength;
+    uint8_t packageIndex;
+    telemetryLink.GetCurrentPayload(&packageIndex, &maxLength, &data);
+
+    Radio.TXdataBuffer[3] = packageIndex;
     Radio.TXdataBuffer[4] = crsf.LinkStatistics.uplink_SNR;
     Radio.TXdataBuffer[5] = crsf.LinkStatistics.uplink_Link_quality;
-    Radio.TXdataBuffer[6] = telemetry.UpdatedPayloadCount() * 10;
+    Radio.TXdataBuffer[6] = maxLength ? *data : 0;
 
     uint8_t crc = CalcCRC(Radio.TXdataBuffer, 7) + CRCCaesarCipher;
     Radio.TXdataBuffer[7] = crc;
@@ -375,6 +383,7 @@ void ICACHE_RAM_ATTR ProcessRFPacket()
 
     uint8_t indexIN;
     uint8_t TLMrateIn;
+    bool telemetryConfirmValue;
 
     if (inCRC != calculatedCRC)
     {
@@ -411,6 +420,12 @@ void ICACHE_RAM_ATTR ProcessRFPacket()
         UnpackChannelDataSeqSwitches(Radio.RXdataBuffer, &crsf);
         #elif defined HYBRID_SWITCHES_8
         UnpackChannelDataHybridSwitches8(Radio.RXdataBuffer, &crsf);
+        telemetryConfirmValue = Radio.RXdataBuffer[6] & (1 << 7);
+        if (telemetryConfirmValue == WaitUntilTelemtryConfirm)
+        {
+            telemetryLink.ConfirmCurrentPayload();
+            WaitUntilTelemtryConfirm = !telemetryConfirmValue;
+        }
         #else
         UnpackChannelData_11bit();
         #endif
@@ -652,6 +667,8 @@ void setup()
         SetRFLinkRate(RATE_DEFAULT);
     #endif
     telemetry.ResetState();
+    telemetryLink.ResetState();
+    telemetryLink.SetBytesPerCall(1);
     Radio.RXnb();
     crsf.Begin();
     hwTimer.init();
