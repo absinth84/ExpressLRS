@@ -164,11 +164,6 @@ void ICACHE_RAM_ATTR ProcessTLMpacket()
         // flip bit in radio message
         TelemetryConfirm = !TelemetryConfirm;
     }
-    uint8_t receivedLength = telemetryInLink.GetReceivedData();
-    if (receivedLength > 0)
-    {
-        crsf.sendTelemetryToTX(receivedLength, CRSFinBuffer);
-    }
   }
 }
 
@@ -760,6 +755,12 @@ void loop()
       msp.markPacketReceived();
     }
   }
+
+    uint8_t receivedLength = telemetryInLink.GetReceivedData();
+    if (receivedLength > 0)
+    {
+        crsf.sendTelemetryToTX(receivedLength, CRSFinBuffer);
+    }
 }
 
 void ICACHE_RAM_ATTR TimerCallbackISR()

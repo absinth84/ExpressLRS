@@ -781,6 +781,9 @@ void loop()
         #endif
     }
 
+
+    uint8_t *nextPayload = 0;
+    uint8_t nextPlayloadSize = 0;
     while (Serial.available())
     {
         telemetry.RXhandleUARTin(Serial.read());
@@ -795,6 +798,11 @@ void loop()
             #endif
 
             telemetry.callBootloader = false;
+        }
+
+        if (!telemetryLink.IsActive() && telemetry.GetNextPayload(&nextPlayloadSize, &nextPayload))
+        {
+            telemetryLink.SetDataToTransmit(nextPlayloadSize, nextPayload);
         }
     }
 }
