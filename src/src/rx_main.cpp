@@ -424,7 +424,7 @@ void ICACHE_RAM_ATTR ProcessRFPacket()
         if (telemetryConfirmValue == WaitUntilTelemtryConfirm)
         {
             telemetryLink.ConfirmCurrentPayload();
-            WaitUntilTelemtryConfirm = !telemetryConfirmValue;
+            WaitUntilTelemtryConfirm = !WaitUntilTelemtryConfirm;
         }
         #else
         UnpackChannelData_11bit();

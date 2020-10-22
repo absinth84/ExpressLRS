@@ -92,7 +92,7 @@ bool WaitEepromCommit = false;
 StubbornLink telemetryInLink;
 uint8_t CRSFinBuffer[CRSF_MAX_PACKET_LEN];
 volatile bool TelemetryConfirm = false;
-
+uint8_t receivedTelemetry = 0;
 // MSP packet handling function defs
 void ProcessMSPPacket(mspPacket_t *packet);
 void OnRFModePacket(mspPacket_t *packet);
@@ -148,7 +148,7 @@ void ICACHE_RAM_ATTR ProcessTLMpacket()
   if (TLMheader == CRSF_FRAMETYPE_LINK_STATISTICS)
   {
     crsf.LinkStatistics.uplink_RSSI_1 = Radio.RXdataBuffer[2];
-    crsf.LinkStatistics.uplink_RSSI_2 = 0;
+    crsf.LinkStatistics.uplink_RSSI_2 = receivedTelemetry;
     crsf.LinkStatistics.uplink_SNR = Radio.RXdataBuffer[4];
     crsf.LinkStatistics.uplink_Link_quality = Radio.RXdataBuffer[5];
 
@@ -163,6 +163,14 @@ void ICACHE_RAM_ATTR ProcessTLMpacket()
     {
         // flip bit in radio message
         TelemetryConfirm = !TelemetryConfirm;
+    }
+
+    uint8_t receivedLength = telemetryInLink.GetReceivedData();
+    if (receivedLength > 0)
+    {
+        receivedTelemetry++;
+        crsf.sendTelemetryToTX(receivedLength, CRSFinBuffer);
+        telemetryInLink.Unlock();
     }
   }
 }
@@ -536,8 +544,8 @@ void HandleUpdateParameter()
 
   UpdateParamReq = false;
   uint8_t luaCurrParams[] = {
-    (uint8_t)(ExpressLRS_currAirRate_Modparams->enum_rate + 3), 
-    (uint8_t)(ExpressLRS_currAirRate_Modparams->TLMinterval + 1), 
+    (uint8_t)(ExpressLRS_currAirRate_Modparams->enum_rate + 3),
+    (uint8_t)(ExpressLRS_currAirRate_Modparams->TLMinterval + 1),
     (uint8_t)(POWERMGNT.currPower() + 2),
     Regulatory_Domain_Index
   };
@@ -755,12 +763,6 @@ void loop()
       msp.markPacketReceived();
     }
   }
-
-    uint8_t receivedLength = telemetryInLink.GetReceivedData();
-    if (receivedLength > 0)
-    {
-        crsf.sendTelemetryToTX(receivedLength, CRSFinBuffer);
-    }
 }
 
 void ICACHE_RAM_ATTR TimerCallbackISR()
