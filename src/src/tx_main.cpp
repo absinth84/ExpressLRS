@@ -89,7 +89,9 @@ bool Channels5to8Changed = false;
 bool WaitRXresponse = false;
 bool WaitEepromCommit = false;
 
+#ifdef ENABLE_TELEMETRY
 StubbornReceiver TelementryReceiver;
+#endif
 uint8_t CRSFinBuffer[CRSF_MAX_PACKET_LEN];
 // MSP packet handling function defs
 void ProcessMSPPacket(mspPacket_t *packet);
@@ -159,6 +161,7 @@ void ICACHE_RAM_ATTR ProcessTLMpacket()
             crsf.sendLinkStatisticsToTX();
 
             break;
+        #ifdef ENABLE_TELEMETRY
         case ELRS_TELEMETRY_TYPE_DATA:
             TelementryReceiver.ReceiveData(TLMheader >> ELRS_TELEMETRY_SHIFT, Radio.RXdataBuffer + 2);
             if (TelementryReceiver.HasFinishedData())
@@ -167,6 +170,7 @@ void ICACHE_RAM_ATTR ProcessTLMpacket()
                 TelementryReceiver.Unlock();
             }
             break;
+        #endif
     }
 }
 
@@ -397,7 +401,11 @@ void ICACHE_RAM_ATTR SendRCdataToRF()
     else
     {
       #if defined HYBRID_SWITCHES_8
+      #ifdef ENABLE_TELEMETRY
       GenerateChannelDataHybridSwitch8(Radio.TXdataBuffer, &crsf, DeviceAddr, TelementryReceiver.GetCurrentConfirm());
+      #else
+      GenerateChannelDataHybridSwitch8(Radio.TXdataBuffer, &crsf, DeviceAddr, false);
+      #endif
       #elif defined SEQ_SWITCHES
       GenerateChannelDataSeqSwitch(Radio.TXdataBuffer, &crsf, DeviceAddr);
       #else
@@ -669,8 +677,10 @@ void setup()
     delay(1000);
     #endif
   }
+  #ifdef ENABLE_TELEMETRY
   TelementryReceiver.ResetState();
   TelementryReceiver.SetDataToReceive(sizeof(CRSFinBuffer), CRSFinBuffer, ELRS_TELEMETRY_BYTES_PER_CALL);
+  #endif
   POWERMGNT.setDefaultPower();
 
   eeprom.Begin(); // Init the eeprom

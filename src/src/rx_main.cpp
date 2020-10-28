@@ -44,7 +44,11 @@ hwTimer hwTimer;
 
 CRSF crsf(Serial); //pass a serial port object to the class for it to use
 Telemetry telemetry;
+
+#ifdef ENABLE_TELEMETRY
 StubbornSender TelementrySender;
+#endif
+uint8_t NextTelemtetryType = ELRS_TELEMETRY_TYPE_LINK;
 /// Filters ////////////////
 LPF LPF_Offset(2);
 LPF LPF_OffsetDx(4);
@@ -106,8 +110,6 @@ int16_t RFnoiseFloor; //measurement of the current RF noise floor
 uint32_t RFmodeLastCycled = 0;
 bool LockRFmode = false;
 ///////////////////////////////////////
-
-uint8_t NextTelemtetryType = ELRS_TELEMETRY_TYPE_LINK;
 
 void ICACHE_RAM_ATTR getRFlinkInfo()
 {
@@ -177,9 +179,11 @@ void ICACHE_RAM_ATTR HandleFHSS()
 
 void ICACHE_RAM_ATTR HandleSendTelemetryResponse()
 {
+    #ifdef ENABLE_TELEMETRY
     uint8_t *data;
     uint8_t maxLength;
     uint8_t packageIndex;
+    #endif
     uint8_t openTxRSSI;
 
     if ((connectionState == disconnected) || (ExpressLRS_currAirRate_Modparams->TLMinterval == TLM_RATIO_NO_TLM) || (alreadyTLMresp == true))
@@ -196,10 +200,15 @@ void ICACHE_RAM_ATTR HandleSendTelemetryResponse()
     alreadyTLMresp = true;
 
     Radio.TXdataBuffer[0] = (DeviceAddr << 2) + 0b11; // address + tlm packet
+
     switch (NextTelemtetryType)
     {
         case ELRS_TELEMETRY_TYPE_LINK:
+            #ifdef ENABLE_TELEMETRY
             NextTelemtetryType = ELRS_TELEMETRY_TYPE_DATA;
+            #else
+            NextTelemtetryType = ELRS_TELEMETRY_TYPE_LINK;
+            #endif
             Radio.TXdataBuffer[1] = ELRS_TELEMETRY_TYPE_LINK;
 
             // OpenTX hard codes "rssi" warnings to the LQ sensor for crossfire, so the
@@ -217,7 +226,9 @@ void ICACHE_RAM_ATTR HandleSendTelemetryResponse()
             Radio.TXdataBuffer[4] = crsf.LinkStatistics.uplink_SNR;
             Radio.TXdataBuffer[5] = crsf.LinkStatistics.uplink_Link_quality;
             Radio.TXdataBuffer[6] = 0;
+
             break;
+        #ifdef ENABLE_TELEMETRY
         case ELRS_TELEMETRY_TYPE_DATA:
             NextTelemtetryType = ELRS_TELEMETRY_TYPE_LINK;
             TelementrySender.GetCurrentPayload(&packageIndex, &maxLength, &data);
@@ -228,6 +239,7 @@ void ICACHE_RAM_ATTR HandleSendTelemetryResponse()
             Radio.TXdataBuffer[5] = maxLength >= 3 ? *(data + 3): 0;
             Radio.TXdataBuffer[6] = maxLength >= 4 ? *(data + 4): 0;
             break;
+        #endif
     }
 
     uint8_t crc = CalcCRC(Radio.TXdataBuffer, 7) + CRCCaesarCipher;
@@ -398,7 +410,9 @@ void ICACHE_RAM_ATTR ProcessRFPacket()
 
     uint8_t indexIN;
     uint8_t TLMrateIn;
+    #ifdef ENABLE_TELEMETRY
     bool telemetryConfirmValue;
+    #endif
 
     if (inCRC != calculatedCRC)
     {
@@ -435,8 +449,10 @@ void ICACHE_RAM_ATTR ProcessRFPacket()
         UnpackChannelDataSeqSwitches(Radio.RXdataBuffer, &crsf);
         #elif defined HYBRID_SWITCHES_8
         UnpackChannelDataHybridSwitches8(Radio.RXdataBuffer, &crsf);
+        #ifdef ENABLE_TELEMETRY
         telemetryConfirmValue = Radio.RXdataBuffer[6] & (1 << 7);
         TelementrySender.ConfirmCurrentPayload(telemetryConfirmValue);
+        #endif
         #else
         UnpackChannelData_11bit();
         #endif
@@ -678,7 +694,9 @@ void setup()
         SetRFLinkRate(RATE_DEFAULT);
     #endif
     telemetry.ResetState();
+    #ifdef ENABLE_TELEMETRY
     TelementrySender.ResetState();
+    #endif
     Radio.RXnb();
     crsf.Begin();
     hwTimer.init();
@@ -688,6 +706,11 @@ void setup()
 
 void loop()
 {
+    #ifdef ENABLE_TELEMETRY
+    uint8_t *nextPayload = 0;
+    uint8_t nextPlayloadSize = 0;
+    #endif
+
     if (hwTimer.running == false)
     {
         crsf.RXhandleUARTout();
@@ -792,8 +815,7 @@ void loop()
     }
 
 
-    uint8_t *nextPayload = 0;
-    uint8_t nextPlayloadSize = 0;
+
     while (Serial.available())
     {
         telemetry.RXhandleUARTin(Serial.read());
@@ -810,9 +832,11 @@ void loop()
             telemetry.callBootloader = false;
         }
 
+        #ifdef ENABLE_TELEMETRY
         if (!TelementrySender.IsActive() && telemetry.GetNextPayload(&nextPlayloadSize, &nextPayload))
         {
             TelementrySender.SetDataToTransmit(nextPlayloadSize, nextPayload, ELRS_TELEMETRY_BYTES_PER_CALL);
         }
+        #endif
     }
 }
