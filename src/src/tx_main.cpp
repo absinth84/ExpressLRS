@@ -26,7 +26,10 @@ SX1280Driver Radio;
 #include "hwTimer.h"
 #include "LQCALC.h"
 #include "LowPassFilter.h"
+#ifdef ENABLE_TELEMETRY
+#include <telemetry_protocol.h>
 #include <stubborn_receiver.h>
+#endif
 
 #ifdef PLATFORM_ESP8266
 #include "soc/soc.h"
@@ -90,7 +93,7 @@ bool WaitRXresponse = false;
 bool WaitEepromCommit = false;
 
 #ifdef ENABLE_TELEMETRY
-StubbornReceiver TelementryReceiver;
+StubbornReceiver TelementryReceiver(ELRS_TELEMETRY_MAX_PACKAGES);
 #endif
 uint8_t CRSFinBuffer[CRSF_MAX_PACKET_LEN];
 // MSP packet handling function defs
@@ -235,8 +238,8 @@ void ICACHE_RAM_ATTR Generate4ChannelData_11bit()
   Radio.TXdataBuffer[6] += CRSF_to_BIT(crsf.ChannelDataIn[6]) << 1;
   Radio.TXdataBuffer[6] += CRSF_to_BIT(crsf.ChannelDataIn[7]) << 0;
 #endif
-#ifdef ENABLE_TELMETRY
-  Radio.TXdataBuffer[6] =  Radio.TXdataBuffer[6] & ~1 | TelementryReceiver.GetCurrentConfirm();
+#ifdef ENABLE_TELEMETRY
+  Radio.TXdataBuffer[6] =  Radio.TXdataBuffer[6] & (~1 | TelementryReceiver.GetCurrentConfirm());
 #endif
 }
 
