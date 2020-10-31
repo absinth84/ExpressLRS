@@ -238,6 +238,11 @@ void ICACHE_RAM_ATTR CRSF::sendLUAresponse(uint8_t val[])
 
 void ICACHE_RAM_ATTR CRSF::sendTelemetryToTX(uint8_t *data)
 {
+    if (data[CRSF_TELEMETRY_LENGTH_INDEX] > CRSF_PAYLOAD_SIZE_MAX)
+    {
+        return;
+    }
+
     if (CRSF::CRSFstate)
     {
         data[0] = CRSF_ADDRESS_RADIO_TRANSMITTER;
