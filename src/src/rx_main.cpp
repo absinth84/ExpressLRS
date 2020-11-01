@@ -838,7 +838,7 @@ void loop()
     {
         telemetry.RXhandleUARTin(Serial.read());
 
-        if (telemetry.callBootloader)
+        if (telemetry.ShouldCallBootloader())
         {
             #if defined(PLATFORM_STM32)
                 delay(100);
@@ -846,8 +846,6 @@ void loop()
                 delay(100);
                 HAL_NVIC_SystemReset();
             #endif
-
-            telemetry.callBootloader = false;
         }
 
         #ifdef ENABLE_TELEMETRY
