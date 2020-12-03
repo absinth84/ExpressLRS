@@ -8,6 +8,7 @@
 #include "msptypes.h"
 #include "../../src/targets.h"
 #include "../../src/LowPassFilter.h"
+#include "../CRC/crc.h"
 
 #ifdef PLATFORM_ESP32
 #include "esp32-hal-uart.h"
@@ -23,7 +24,7 @@ class CRSF
 {
 
 public:
-    #if defined(PLATFORM_ESP8266) || defined(TARGET_R9M_RX) || defined(UNIT_TEST)
+    #if defined(PLATFORM_ESP8266) || defined(TARGET_R9M_RX) || defined(TARGET_RX_GHOST_ATTO_V1) || defined(TARGET_SX1280_RX_CCG_NANO_v05) ||defined(UNIT_TEST)
 
     CRSF(Stream *dev) : _dev(dev)
     {
@@ -86,6 +87,9 @@ public:
     static uint32_t GoodPktsCount;
     static uint32_t BadPktsCount;
 
+    static uint32_t GoodPktsCountResult; // need to latch the results
+    static uint32_t BadPktsCountResult; // need to latch the results
+
 #ifdef PLATFORM_ESP32
     static void ICACHE_RAM_ATTR ESP32uartTask(void *pvParameters);
     static void ICACHE_RAM_ATTR UARTwdt(void *pvParametersxHandleSerialOutFIFO);
@@ -106,7 +110,7 @@ public:
     void ICACHE_RAM_ATTR sendLinkStatisticsToTX();
     void ICACHE_RAM_ATTR sendTelemetryToTX(uint8_t *data);
 
-    void sendLUAresponse(uint8_t val[]);
+    void sendLUAresponse(uint8_t val[], uint8_t len);
 
     static void ICACHE_RAM_ATTR sendSetVTXchannel(uint8_t band, uint8_t channel);
 
