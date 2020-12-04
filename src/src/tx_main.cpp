@@ -11,6 +11,7 @@ SX127xDriver Radio;
 SX1280Driver Radio;
 #endif
 
+#include <crsf_protocol.h>
 #include "CRSF.h"
 #include "FHSS.h"
 #include "LED.h"
@@ -25,6 +26,10 @@ SX1280Driver Radio;
 #include "hwTimer.h"
 #include "LQCALC.h"
 #include "LowPassFilter.h"
+#ifdef ENABLE_TELEMETRY
+#include <telemetry_protocol.h>
+#include <stubborn_receiver.h>
+#endif
 
 #ifdef PLATFORM_ESP8266
 #include "soc/soc.h"
@@ -90,6 +95,10 @@ bool Channels5to8Changed = false;
 bool WaitRXresponse = false;
 bool WaitEepromCommit = false;
 
+#ifdef ENABLE_TELEMETRY
+StubbornReceiver TelementryReceiver(ELRS_TELEMETRY_MAX_PACKAGES);
+#endif
+uint8_t CRSFinBuffer[CRSF_MAX_PACKET_LEN];
 // MSP packet handling function defs
 void ProcessMSPPacket(mspPacket_t *packet);
 void OnRFModePacket(mspPacket_t *packet);
@@ -142,24 +151,33 @@ void ICACHE_RAM_ATTR ProcessTLMpacket()
   LastTLMpacketRecvMillis = millis();
   LQCALC.add();
 
-  if (TLMheader == CRSF_FRAMETYPE_LINK_STATISTICS)
-  {
-    crsf.LinkStatistics.uplink_RSSI_1 = Radio.RXdataBuffer[2];
-    crsf.LinkStatistics.uplink_RSSI_2 = 0;
-    crsf.LinkStatistics.uplink_SNR = Radio.RXdataBuffer[4];
-    crsf.LinkStatistics.uplink_Link_quality = Radio.RXdataBuffer[5];
+    switch(TLMheader & ELRS_TELEMETRY_TYPE_MASK)
+    {
+        case ELRS_TELEMETRY_TYPE_LINK:
+            crsf.LinkStatistics.uplink_RSSI_1 = Radio.RXdataBuffer[2];
+            crsf.LinkStatistics.uplink_RSSI_2 = 0;
+            crsf.LinkStatistics.uplink_SNR = Radio.RXdataBuffer[4];
+            crsf.LinkStatistics.uplink_Link_quality = Radio.RXdataBuffer[5];
 
-    crsf.LinkStatistics.downlink_SNR = int8_t(Radio.LastPacketSNR);
-    crsf.LinkStatistics.downlink_RSSI = 120 + Radio.LastPacketRSSI;
-    crsf.LinkStatistics.downlink_Link_quality = LPD_DownlinkLQ.update(LQCALC.getLQ()) + 1; // +1 fixes rounding issues with filter and makes it consistent with RX LQ Calculation
-    //crsf.LinkStatistics.downlink_Link_quality = Radio.currPWR;
-    crsf.LinkStatistics.rf_Mode = 4 - ExpressLRS_currAirRate_Modparams->index;
+            crsf.LinkStatistics.downlink_SNR = int(Radio.LastPacketSNR * 10);
+            crsf.LinkStatistics.downlink_RSSI = 120 + Radio.LastPacketRSSI;
+            crsf.LinkStatistics.downlink_Link_quality = LPD_DownlinkLQ.update(LQCALC.getLQ()) + 1; // +1 fixes rounding issues with filter and makes it consistent with RX LQ Calculation
+            //crsf.LinkStatistics.downlink_Link_quality = Radio.currPWR;
+            crsf.LinkStatistics.rf_Mode = 4 - ExpressLRS_currAirRate_Modparams->index;
+            crsf.sendLinkStatisticsToTX();
 
-    crsf.TLMbattSensor.voltage = (Radio.RXdataBuffer[3] << 8) + Radio.RXdataBuffer[6];
-
-    crsf.sendLinkStatisticsToTX();
-    crsf.sendLinkBattSensorToTX();
-  }
+            break;
+        #ifdef ENABLE_TELEMETRY
+        case ELRS_TELEMETRY_TYPE_DATA:
+            TelementryReceiver.ReceiveData(TLMheader >> ELRS_TELEMETRY_SHIFT, Radio.RXdataBuffer + 2);
+            if (TelementryReceiver.HasFinishedData())
+            {
+                crsf.sendTelemetryToTX(CRSFinBuffer);
+                TelementryReceiver.Unlock();
+            }
+            break;
+        #endif
+    }
 }
 
 void ICACHE_RAM_ATTR CheckChannels5to8Change()
@@ -227,6 +245,9 @@ void ICACHE_RAM_ATTR Generate4ChannelData_11bit()
   Radio.TXdataBuffer[6] += CRSF_to_BIT(crsf.ChannelDataIn[5]) << 2;
   Radio.TXdataBuffer[6] += CRSF_to_BIT(crsf.ChannelDataIn[6]) << 1;
   Radio.TXdataBuffer[6] += CRSF_to_BIT(crsf.ChannelDataIn[7]) << 0;
+#endif
+#ifdef ENABLE_TELEMETRY
+  Radio.TXdataBuffer[6] =  Radio.TXdataBuffer[6] & (~1 | TelementryReceiver.GetCurrentConfirm());
 #endif
 }
 
@@ -353,7 +374,11 @@ void ICACHE_RAM_ATTR SendRCdataToRF()
     else
     {
       #if defined HYBRID_SWITCHES_8
-      GenerateChannelDataHybridSwitch8(Radio.TXdataBuffer, &crsf, DeviceAddr);
+      #ifdef ENABLE_TELEMETRY
+      GenerateChannelDataHybridSwitch8(Radio.TXdataBuffer, &crsf, DeviceAddr, TelementryReceiver.GetCurrentConfirm());
+      #else
+      GenerateChannelDataHybridSwitch8(Radio.TXdataBuffer, &crsf, DeviceAddr, false);
+      #endif
       #elif defined SEQ_SWITCHES
       GenerateChannelDataSeqSwitch(Radio.TXdataBuffer, &crsf, DeviceAddr);
       #else
@@ -552,7 +577,7 @@ void setup()
     Serial.setRx(PA3);
     Serial.begin(400000);
 #endif
-    
+
 
 #if defined(TARGET_R9M_TX)
     // Annoying startup beeps
@@ -634,6 +659,10 @@ void setup()
     delay(1000);
     #endif
   }
+  #ifdef ENABLE_TELEMETRY
+  TelementryReceiver.ResetState();
+  TelementryReceiver.SetDataToReceive(sizeof(CRSFinBuffer), CRSFinBuffer, ELRS_TELEMETRY_BYTES_PER_CALL);
+  #endif
   POWERMGNT.setDefaultPower();
 
   eeprom.Begin(); // Init the eeprom
