@@ -4,8 +4,6 @@
 #include "common.h"
 #include "LowPassFilter.h"
 
-#define TARGET_R9M_RX 1
-#define Regulatory_Domain_EU_868 1
 #if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_EU_868) || defined(Regulatory_Domain_FCC_915) || defined(Regulatory_Domain_AU_433) || defined(Regulatory_Domain_EU_433)
 #include "SX127xDriver.h"
 SX127xDriver Radio;
@@ -36,6 +34,15 @@ SX1280Driver Radio;
 #include "ESP8266_WebUpdate.h"
 #endif
 
+#ifdef TARGET_RX_GHOST_ATTO_V1
+uint8_t LEDfadeDiv;
+uint8_t LEDfade;
+bool LEDfadeDir;
+uint32_t LEDupdateInterval = 25;
+uint32_t LEDupdateCounterMillis;
+#include "STM32F3_WS2812B_LED.h"
+#endif
+
 //// CONSTANTS ////
 #define BUTTON_SAMPLE_INTERVAL 150
 #define WEB_UPDATE_PRESS_INTERVAL 2000 // hold button for 2 sec to enable webupdate mode
@@ -50,6 +57,16 @@ hwTimer hwTimer;
 GENERIC_CRC8 ota_crc(ELRS_CRC_POLY);
 CRSF crsf(Serial); //pass a serial port object to the class for it to use
 Telemetry telemetry;
+
+#if defined(TARGET_RX_GHOST_ATTO_V1) /* !TARGET_RX_GHOST_ATTO_V1 */
+    #define CRSF_RX_SERIAL CrsfRxSerial
+    HardwareSerial CrsfRxSerial(USART1, HALF_DUPLEX_ENABLED);
+#elif defined(TARGET_R9SLIMPLUS_RX) /* !TARGET_R9SLIMPLUS_RX */
+    #define CRSF_RX_SERIAL CrsfRxSerial
+    HardwareSerial CrsfRxSerial(USART3);
+#else
+    #define CRSF_RX_SERIAL Serial
+#endif
 
 #ifdef ENABLE_TELEMETRY
 StubbornSender TelementrySender(ELRS_TELEMETRY_MAX_PACKAGES);
@@ -920,9 +937,9 @@ void loop()
 
 
 
-    while (Serial.available())
+    while (CRSF_RX_SERIAL.available())
     {
-        telemetry.RXhandleUARTin(Serial.read());
+        telemetry.RXhandleUARTin(CRSF_RX_SERIAL.read());
 
         if (telemetry.ShouldCallBootloader())
         {
